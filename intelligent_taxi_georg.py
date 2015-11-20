@@ -22,9 +22,11 @@ i = 0;
 factor = 0.5
 de_factor = 1 / factor
 
-while capture.get(cv2.cv.CV_CAP_PROP_POS_AVI_RATIO) < 1:
+ret, frame = capture.read()
+
+while (ret != False):
 	# Capture frame-by-frame
-	ret,frame=capture.read()
+	
 	if i % 1 == 0:
 		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 		resized_gray = cv2.resize(gray, (0,0), fx = factor, fy = factor)
@@ -36,6 +38,9 @@ while capture.get(cv2.cv.CV_CAP_PROP_POS_AVI_RATIO) < 1:
 		if not t.is_alive():
 			t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
 			t.start()
+			print "Thread finished -> restart"
+		else:
+			print "Thread still running"
 	#show the frame
 
 	rects_lock.acquire()
@@ -45,6 +50,9 @@ while capture.get(cv2.cv.CV_CAP_PROP_POS_AVI_RATIO) < 1:
 
 	cv2.imshow('frame',frame)
 	i += 1
+
+	ret, frame=capture.read()
+	
 	if cv2.waitKey(1) & 0xFF == ord('q'):
 		break
 
@@ -53,4 +61,3 @@ while capture.get(cv2.cv.CV_CAP_PROP_POS_AVI_RATIO) < 1:
 # When everything done, release the capture
 capture.release()
 cv2.destroyAllWindows()
-
