@@ -2,16 +2,21 @@ import numpy as np
 import cv2
 
 
-videoFileName="VIDEO0060.mp4"
+videoFileName = "VIDEO0060.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_frontalface.xml')
 i = 0;
 factor = 0.5
 de_factor = 1 / factor
-while capture.get(cv2.cv.CV_CAP_PROP_POS_AVI_RATIO) < 1:
+
+ret, frame = capture.read()
+
+print ret
+
+while (ret != False):
 	# Capture frame-by-frame
-	ret,frame=capture.read()
+	
 	if i % 2 == 0:
 		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 		resized_gray = cv2.resize(gray, (0,0), fx = factor, fy = factor)
@@ -21,6 +26,9 @@ while capture.get(cv2.cv.CV_CAP_PROP_POS_AVI_RATIO) < 1:
 		cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),1)
 	cv2.imshow('frame',frame)
 	i += 1
+
+	ret, frame=capture.read()
+	
 	if cv2.waitKey(1) & 0xFF == ord('q'):
 		break
 
