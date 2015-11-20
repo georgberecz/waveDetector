@@ -6,6 +6,20 @@ import cv2
 rects = []
 rects_lock = threading.Lock()
 
+def print_no_gesture_indicator(image):
+	cv2.rectangle(frame,
+				  (0,0),
+				  (image.shape[1],image.shape[0]),
+				  (0,0,255),
+				  2)
+
+def print_gesture_indicator(image):
+	cv2.rectangle(frame,
+				  (0,0),
+				  (image.shape[1],image.shape[0]),
+				  (0,255,0),
+				  2)
+
 def detectFaces(image, faceDetector):
 	global rects
 	my_rects = faceDetector.detectMultiScale(image)
@@ -14,7 +28,7 @@ def detectFaces(image, faceDetector):
 	rects_lock.release()
 	return True
 
-videoFileName="VIDEO0062.mp4"
+videoFileName="VIDEO0060.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -41,13 +55,35 @@ while (ret != False):
 			print "Thread finished -> restart"
 		else:
 			print "Thread still running"
-	#show the frame
 
+	#print rectangles
 	rects_lock.acquire()
 	for rect in rects:
-		cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),1)
+		cv2.rectangle(frame,
+					  (int(rect[0] * de_factor), int(rect[1] * de_factor)),
+					  (int(rect[0] * de_factor + rect[2] * de_factor),
+					   int(rect[1] * de_factor + rect[3] * de_factor)),
+					  (255,0,0),
+					  1)
+		ret,thresh = cv2.threshold(gray[:,:],
+								   100,
+								   255,
+								   cv2.THRESH_BINARY)
+		if thresh is not None:
+			print "thresh not None"
+			contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+			cv2.drawContours(frame, contours, -1, (0,255,0), 1)
 	rects_lock.release()
 
+
+	gesture_detected = False
+	#print different boxes depending if gesture was detected
+	if gesture_detected:
+		print_gesture_indicator(frame)
+	else:
+		print_no_gesture_indicator(frame)
+
+	#show the frame
 	cv2.imshow('frame',frame)
 	i += 1
 
