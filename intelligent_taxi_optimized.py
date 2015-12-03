@@ -12,8 +12,30 @@ def detectFaces(image, faceDetector):
 	my_rects = faceDetector.detectMultiScale(image)
 	rects_lock.acquire()
 	rects = my_rects
+	rects = mergeRectangles(rects, 0.5)
 	rects_lock.release()
 	return True
+
+def smooth_rects(rects, prev_frames_rects, steps):
+        prev_len = len(prev_frames_rects)
+        for i in range(len(rects)):
+                (x, y, w, h) = rects[i]
+                x2 = x+w
+                y2 = y+h
+                previous = prev_frames_rects[max(0, prev_len-steps) : prev_len]
+                for j in range(len(previous)):
+                        (px, py, pw, ph) = previous[j][0]
+                        px2 = px + pw
+                        py2 = py + ph
+                        x = slerp(x, px, 0.5 / (j+1))
+                        y = slerp(y, py, 0.5 / (j+1))
+                        x2 = slerp(x2, px2, 0.5 / (j+1))
+                        y2 = slerp(y2, py2, 0.5 / (j+1))
+                rects[i] = (x, y, x2-x, y2-y)
+        return rects
+
+def slerp(a, b, value):
+        return b*value + a*(1-value)
 
 #overlapThreshold is a precentage in range 0-1
 def mergeRectangles(rects, overlapThres):
@@ -38,7 +60,7 @@ def mergeRectangles(rects, overlapThres):
                                 ny2 = max(y + h, y2 + h2)
                                 rects[j] = (nx1, ny1, nx2-nx1, ny2-ny1)
                                 overlap = True;
-                                time.sleep(2)
+                                #time.sleep(2)
                                 break;
                 if (not overlap):
                         rects2.append((x, y, w, h))
@@ -60,7 +82,7 @@ resized_gray = cv2.resize(gray, (0,0), fx = factor, fy = factor)
 t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
 t.start()
 
-
+prev_frames_rects = []
 while (ret != False):
 	# Capture frame-by-frame
 	time.sleep(0.2)
@@ -77,7 +99,9 @@ while (ret != False):
 	#show the frame
 
 	rects_lock.acquire()
-	rects = mergeRectangles(rects, 0.5)
+	if (rects):
+		rects = smooth_rects(rects, prev_frames_rects, 5)
+		prev_frames_rects.append(rects)
 	
 	for rect in rects:
 		cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),3)
