@@ -16,15 +16,63 @@ def detectFaces(image, faceDetector):
 	rects_lock.release()
 	return True
 
+def draw_rects(frame, rects):
+        for rect in rects:
+                if rect is not None:
+                        cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),3)
+
+#It matches the current frame with the previous one and adds Null if no match was found
+def match_rects(rects, prev_frames_rects):
+        output = []
+        prev_rects = []
+        #take all previous frame rectangles
+        if len(prev_frames_rects) > 0:
+                prev_rects = prev_frames_rects[-1]
+
+        #match all previous frame rectangles
+        for j in range(len(prev_rects)):
+                if (prev_rects[j] is None):
+                        output.append(None)
+                        continue
+                prev_x = prev_rects[j][0]
+                mindist = 9999
+                minrect = None
+                if (len(rects) > 0):
+                        minrect = rects[0]
+                for r in rects:
+                        dist = abs(r[0] - prev_x)
+                        if (dist < mindist):
+                                mindist = dist
+                                minrect = r
+                if (mindist > 50):
+                        output.append(None);
+                else:
+                        rects.remove(minrect)
+                        output.append(minrect)
+        for r in rects:
+                output.append(r)
+                
+        return output
+
 def smooth_rects(rects, prev_frames_rects, steps):
         prev_len = len(prev_frames_rects)
         for i in range(len(rects)):
+                if rects[i] is None:
+                        continue;
+                #if (len(rects)) > 1: time.sleep(1)
                 (x, y, w, h) = rects[i]
                 x2 = x+w
                 y2 = y+h
                 previous = prev_frames_rects[max(0, prev_len-steps) : prev_len]
                 for j in range(len(previous)):
-                        (px, py, pw, ph) = previous[j][0]
+                        #find the corresponding rectangle in rectangle list
+                        if len(previous[j]) <= i:
+                                continue;
+                        minrect = previous[j][i]
+                        if minrect is None:
+                                continue;
+                        #edit chosen rectangle
+                        (px, py, pw, ph) = minrect
                         px2 = px + pw
                         py2 = py + ph
                         x = slerp(x, px, 0.5 / (j+1))
@@ -83,6 +131,7 @@ t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
 t.start()
 
 prev_frames_rects = []
+prev_frame = None
 while (ret != False):
 	# Capture frame-by-frame
 	time.sleep(0.2)
@@ -99,17 +148,21 @@ while (ret != False):
 	#show the frame
 
 	rects_lock.acquire()
-	if (rects):
+	if (rects is not None):
+		rects = match_rects(rects, prev_frames_rects)
 		rects = smooth_rects(rects, prev_frames_rects, 5)
 		prev_frames_rects.append(rects)
+
+	if (prev_frame is not None):
+		#draw_rects(frame, rects);
+		draw_rects(prev_frame, prev_frames_rects[-2])
+		cv2.imshow('frame', prev_frame)
 	
-	for rect in rects:
-		cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),3)
 	rects_lock.release()
 
-	cv2.imshow('frame',frame)
 	i += 1
 
+	prev_frame = frame
 	ret, frame=capture.read()
 	
 	if cv2.waitKey(1) & 0xFF == ord('q'):
