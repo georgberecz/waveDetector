@@ -3,6 +3,7 @@ import threading
 import time
 from threading import Thread
 import cv2
+import copy
 
 rects = []
 rects_lock = threading.Lock()
@@ -25,12 +26,16 @@ def draw_rects(frame, rects):
 def match_rects(rects, prev_frames_rects):
         output = []
         prev_rects = []
+        rects2 = copy.deepcopy(rects)
+        
         #take all previous frame rectangles
         if len(prev_frames_rects) > 0:
                 prev_rects = prev_frames_rects[-1]
 
         #match all previous frame rectangles
         for j in range(len(prev_rects)):
+                if len(prev_rects) >= j: continue; #somehow there appears a bug where j actually can go bigger than len(prev_rects)
+                
                 if (prev_rects[j] is None):
                         output.append(None)
                         continue
@@ -38,18 +43,19 @@ def match_rects(rects, prev_frames_rects):
                 mindist = 9999
                 minrect = None
                 if (len(rects) > 0):
-                        minrect = rects[0]
-                for r in rects:
-                        dist = abs(r[0] - prev_x)
-                        if (dist < mindist):
-                                mindist = dist
-                                minrect = r
+                        minrect = rects2[0]
+                for r in rects2:
+                        if (r is not None):
+                                dist = abs(r[0] - prev_x)
+                                if (dist < mindist):
+                                        mindist = dist
+                                        minrect = r
                 if (mindist > 50):
                         output.append(None);
                 else:
-                        rects.remove(minrect)
+                        rects2.remove(minrect)
                         output.append(minrect)
-        for r in rects:
+        for r in rects2:
                 output.append(r)
                 
         return output
@@ -114,7 +120,7 @@ def mergeRectangles(rects, overlapThres):
                         rects2.append((x, y, w, h))
         return rects2
 
-videoFileName="VIDEO0062.mp4"
+videoFileName="VIDEO0061.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -134,7 +140,7 @@ prev_frames_rects = []
 prev_frame = None
 while (ret != False):
 	# Capture frame-by-frame
-	time.sleep(0.2)
+	#time.sleep(0.2)
 	if i % 1 == 0:
 		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 		resized_gray = cv2.resize(gray, (0,0), fx = factor, fy = factor)
