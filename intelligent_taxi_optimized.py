@@ -147,7 +147,14 @@ def correct_rects(corrected_rects, rects, step):
 
         for i in range(len(curr_rects)):
              if (curr_rects[i] == None):
-                     continue;
+                     predecessor = None
+                     for j in range(end-1, start, -1):
+                             if (len(rects[j]) > i and rects[j][i] != None):
+                                     predecessor = rects[j][i];
+                                     break;
+                     if predecessor != None:
+                             corrected_rects[-1][i] = predecessor
+                             
         
         #add missing frames
         #for (i in range(start, end-1)):
@@ -183,17 +190,18 @@ while (ret != False):
 		
 	if t.is_alive():
 		#print "Thread still running"
-		continue;
+		#continue;
+		something = False
 	else:
                 #Process rectangles
 		rects_lock.acquire()
 		rects = match_rects(rects, prev_frames_rects)
 		rects = smooth_rects(rects, prev_frames_rects, 5)
 		prev_frames_rects.append(rects)
-		corrected_prev_frames_rects.append(rects)
+		corrected_prev_frames_rects.append(copy.deepcopy(rects))
 		correct_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
 
-		print_rects(rects)
+		print_rects(corrected_prev_frames_rects[-1])
 		rects_lock.release()
 		#Start new thread
 		t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
@@ -201,15 +209,14 @@ while (ret != False):
 		#print "Thread finished -> restart"	
 	#show the frame
 
-	rects_lock.acquire()
-		
+	final_rects = []
+	if (len(corrected_prev_frames_rects) > 1):
+		final_rects = corrected_prev_frames_rects[-2]
                 
 	if (prev_frame is not None):
 		#draw_rects(frame, rects);
-		draw_rects(prev_frame, prev_frames_rects[-2])
+		draw_rects(prev_frame, final_rects)
 		cv2.imshow('frame', prev_frame)
-	
-	rects_lock.release()
 
 	i += 1
 
