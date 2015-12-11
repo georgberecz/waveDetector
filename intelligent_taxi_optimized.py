@@ -145,6 +145,9 @@ def correct_rects(corrected_rects, rects, step):
 
         curr_rects = rects[-1]
 
+        for i in range(len(curr_rects)):
+             if (curr_rects[i] == None):
+                     continue;
         
         #add missing frames
         #for (i in range(start, end-1)):
