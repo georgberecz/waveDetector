@@ -13,7 +13,7 @@ def detectFaces(image, faceDetector):
 	my_rects = faceDetector.detectMultiScale(image)
 	rects_lock.acquire()
 	rects = my_rects
-	rects = mergeRectangles(rects, 0.5)
+	rects = merge_rects(rects, 0.5)
 	rects_lock.release()
 	return True
 
@@ -34,7 +34,8 @@ def match_rects(rects, prev_frames_rects):
 
         #match all previous frame rectangles
         for j in range(len(prev_rects)):
-                if len(prev_rects) >= j: continue; #somehow there appears a bug where j actually can go bigger than len(prev_rects)
+
+                #if (j >= len(prev_rects)): continue; #somehow there appears a bug where j actually can go bigger than len(prev_rects)
                 
                 if (prev_rects[j] is None):
                         output.append(None)
@@ -42,7 +43,7 @@ def match_rects(rects, prev_frames_rects):
                 prev_x = prev_rects[j][0]
                 mindist = 9999
                 minrect = None
-                if (len(rects) > 0):
+                if (len(rects2) > 0):
                         minrect = rects2[0]
                 for r in rects2:
                         if (r is not None):
@@ -88,11 +89,24 @@ def smooth_rects(rects, prev_frames_rects, steps):
                 rects[i] = (x, y, x2-x, y2-y)
         return rects
 
+def print_rects(rects):
+        result = "["
+        for i in range(len(rects)):
+                if (rects[i] != None):
+                        result += "A"
+                else:
+                        result += "x"
+                if (i < len(rects)-1):
+                        result += " "
+        result += "]"
+        print result;
+                
+
 def slerp(a, b, value):
         return b*value + a*(1-value)
 
 #overlapThreshold is a precentage in range 0-1
-def mergeRectangles(rects, overlapThres):
+def merge_rects(rects, overlapThres):
         rects2 = []
         for i in range(len(rects)):
                 overlap = False
@@ -120,7 +134,26 @@ def mergeRectangles(rects, overlapThres):
                         rects2.append((x, y, w, h))
         return rects2
 
-videoFileName="VIDEO0061.mp4"
+def correct_rects(corrected_rects, rects, step):
+        if len(rects) < 2:
+                return corrected_rects;
+
+        start = len(rects)-step
+        if start < 0:
+                start = 0;
+        end = len(rects)
+
+        curr_rects = rects[-1]
+
+        
+        #add missing frames
+        #for (i in range(start, end-1)):
+                
+        
+        return corrected_rects
+        
+
+videoFileName="VIDEO0062.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -137,28 +170,37 @@ t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
 t.start()
 
 prev_frames_rects = []
+corrected_prev_frames_rects = []
 prev_frame = None
 while (ret != False):
 	# Capture frame-by-frame
 	#time.sleep(0.2)
-	if i % 1 == 0:
-		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-		resized_gray = cv2.resize(gray, (0,0), fx = factor, fy = factor)
+	gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+	resized_gray = cv2.resize(gray, (0,0), fx = factor, fy = factor)
 		
-		if t.is_alive():
-			print "Thread still running"
-		else:
-			t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
-			t.start()
-			#print "Thread finished -> restart"	
-	#show the frame
-
-	rects_lock.acquire()
-	if (rects is not None):
+	if t.is_alive():
+		#print "Thread still running"
+		continue;
+	else:
+                #Process rectangles
+		rects_lock.acquire()
 		rects = match_rects(rects, prev_frames_rects)
 		rects = smooth_rects(rects, prev_frames_rects, 5)
 		prev_frames_rects.append(rects)
+		corrected_prev_frames_rects.append(rects)
+		correct_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
 
+		print_rects(rects)
+		rects_lock.release()
+		#Start new thread
+		t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
+		t.start()
+		#print "Thread finished -> restart"	
+	#show the frame
+
+	rects_lock.acquire()
+		
+                
 	if (prev_frame is not None):
 		#draw_rects(frame, rects);
 		draw_rects(prev_frame, prev_frames_rects[-2])
