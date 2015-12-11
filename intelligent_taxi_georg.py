@@ -30,10 +30,10 @@ def detectFaces(image, faceDetector):
 	return True
 
 def calculate_hsv_mask (image):
-	lower_red_first = np.array([165,0,10])
-	upper_red_first = np.array([179,150,255])
-	lower_red_second = np.array([0,0,10])
-	upper_red_second = np.array([15,150,255])
+	lower_red_first = np.array([169,25,5])
+	upper_red_first = np.array([179,150,250])
+	lower_red_second = np.array([0,25,5])
+	upper_red_second = np.array([15,150,250])
 	mask_red1 = cv2.inRange(image, lower_red_second, upper_red_second)
 	mask_red2 = cv2.inRange(image, lower_red_first, upper_red_first)
 	mask = mask_red1 | mask_red2
@@ -71,7 +71,7 @@ def calculate_skin_mask (skin_color, image):
 		return mask_1
 
 
-videoFileName="VIDEO0060.mp4"
+videoFileName="VIDEO0069.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -124,10 +124,10 @@ while (ret != False):
 		hsv_frame_blurred = cv2.blur(hsv_frame,(3,3))
 		hsv_mask = calculate_hsv_mask(hsv_frame)
 		#ret,thresh = cv2.threshold(gray[y1:(y1+y_difference),x1:x2], 110, 255, cv2.THRESH_BINARY)
-		#thresh = hsv_mask
-		thresh = cv2.morphologyEx(hsv_mask, cv2.MORPH_OPEN, kernel, iterations = 2)
+		thresh = hsv_mask
+		#thresh = cv2.morphologyEx(hsv_mask, cv2.MORPH_OPEN, kernel, iterations = 2)
 		skin_color_thresh = cv2.erode(thresh,kernel,iterations = 2)
-		#thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 4)
+		thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 3)
 
 		if thresh is not None:
 			rec_human = frame[y1:(y1+y_difference),x1:x2]
@@ -154,7 +154,7 @@ while (ret != False):
 			end_mask = cv2.dilate(end_mask,kernel,iterations = 5)
 
 			#cv2.imshow('skin_mask',skin_mask)
-			#cv2.imshow('thresh',thresh)
+			cv2.imshow('thresh',skin_mask)
 			#cv2.imshow('end_mask',end_mask)
 			contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
 			#cv2.drawContours(frame, contours, -1, skin_color, -1)
