@@ -56,18 +56,17 @@ def calculate_skin_mask (skin_color, image):
 		mask_1 = cv2.inRange(image,
 							 np.array([180+lower_bound[0],lower_bound[1],lower_bound[2]]),
 							 np.array([179,upper_bound[1],upper_bound[2]]))
-							 mask_2 = cv2.inRange(image,
-												  np.array([0,lower_bound[1],lower_bound[2]]),
-												  upper_bound)
-							 return (mask_1 | mask_2)
+		mask_2 = cv2.inRange(image,
+							 np.array([0,lower_bound[1],lower_bound[2]]),upper_bound)
+		return (mask_1 | mask_2)
 	elif upper_bound[0] > 179:
 		mask_1 = cv2.inRange(image,
 							 lower_bound,
 							 np.array([179,upper_bound[1],upper_bound[2]]))
-							 mask_2 = cv2.inRange(image,
-												  np.array([0,lower_bound[1],lower_bound[2]]),
-												  np.array([upper_bound[0] - 180,upper_bound[1],upper_bound[2]]))
-							 return (mask_1 | mask_2)
+		mask_2 = cv2.inRange(image,
+							 np.array([0,lower_bound[1],lower_bound[2]]),
+							 np.array([upper_bound[0] - 180,upper_bound[1],upper_bound[2]]))
+		return (mask_1 | mask_2)
 	else:
 		mask_1 = cv2.inRange(image,lower_bound,upper_bound)
 		return mask_1
@@ -199,14 +198,25 @@ def correct_rects(corrected_rects, rects, step):
 	end = len(rects)
 	
 	curr_rects = rects[-1]
-
+	
 	for i in range(len(curr_rects)):
 		if (curr_rects[i] == None):
-			continue;
+			predecessor = None
+			for j in range(end-1, start, -1):
+				if (len(rects[j]) > i and rects[j][i] != None):
+					predecessor = rects[j][i];
+					break;
+			if predecessor != None:
+				corrected_rects[-1][i] = predecessor
+
 	#add missing frames
-	#for (i in range(start, end-1)):
+	#for(i in range(start, end-1)):
 	return corrected_rects
 
+
+##########################################################################
+# START
+##########################################################################
 
 videoFileName="VIDEO0062.mp4"
 capture = cv2.VideoCapture(videoFileName)
@@ -242,33 +252,79 @@ while (ret != False):
 		rects = match_rects(rects, prev_frames_rects)
 		rects = smooth_rects(rects, prev_frames_rects, 5)
 		prev_frames_rects.append(rects)
-		corrected_prev_frames_rects.append(rects)
+		corrected_prev_frames_rects.append(copy.deepcopy(rects))
 		correct_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
 		
-		print_rects(rects)
+		print_rects(corrected_prev_frames_rects[-1])
 		rects_lock.release()
 		#Start new thread
 		t = Thread(target=detectFaces, args=(resized_gray,faceCascade))
 		t.start()
 		#print "Thread finished -> restart"
-#show the frame
 
-	rects_lock.acquire()
-	if (prev_frame is not None):
-		draw_rects(prev_frame, prev_frames_rects[-2])
+	final_rects = []
+	if (len(corrected_prev_frames_rects) > 1):
+		final_rects = corrected_prev_frames_rects[-2]
 
+	for rect in final_rects:
+		x1 = int(rect[0] * de_factor)
+		x2 = int(rect[0] * de_factor + rect[2] * de_factor)
+		y1 = int(rect[1] * de_factor)
+		y2 = int(rect[1] * de_factor + rect[3] * de_factor)
+		# y_difference defines the upper third of the recognized human
+		y_difference = int((y2 - y1) / 3)
+		cv2.rectangle(frame,
+					  (x1,y1),(x2,y2),
+					  (255,0,0),
+					  1)
+			
+		hsv_frame = cv2.cvtColor(frame[y1:(y1+y_difference),x1:x2], cv2.COLOR_BGR2HSV)
+		hsv_frame_blurred = cv2.blur(hsv_frame,(3,3))
+		hsv_mask = calculate_hsv_mask(hsv_frame)
+		#ret,thresh = cv2.threshold(gray[y1:(y1+y_difference),x1:x2], 110, 255, cv2.THRESH_BINARY)
+		thresh = hsv_mask
+		#thresh = cv2.morphologyEx(hsv_mask, cv2.MORPH_OPEN, kernel, iterations = 2)
+		skin_color_thresh = cv2.erode(thresh,kernel,iterations = 2)
+		thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 3)
+					  
+		if thresh is not None:
+			rec_human = frame[y1:(y1+y_difference),x1:x2]
+			#rec_human_blurred = cv2.blur(rec_human,(3,3))
+			skin_color =  cv2.mean(rec_human,skin_color_thresh)
+			hsv_skin_color = cv2.cvtColor(np.uint8([[skin_color]]), cv2.COLOR_BGR2HSV)
+			skin_mask = calculate_skin_mask(hsv_skin_color, hsv_frame_blurred)
+			skin_mask = cv2.dilate(skin_mask,kernel,iterations = 1)
+											  
+											  
+			end_mask = skin_mask & thresh
+												  
+			kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
+			end_mask = cv2.dilate(end_mask,kernel,iterations = 5)
+														  
+			#cv2.imshow('skin_mask',skin_mask)
+			cv2.imshow('thresh',skin_mask)
+			#cv2.imshow('end_mask',end_mask)
+			contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
+			accepted_contours = 0
+			for contour in contours:
+				area = cv2.contourArea(contour)
+				if area > 150:
+					accepted_contours += 1
+			if accepted_contours >= 2:
+				gesture_detected = True
 
-	rects_lock.release()
 	#print different boxes depending if gesture was detected
 	if gesture_detected:
 		print_gesture_indicator(frame)
 	else:
 		print_no_gesture_indicator(frame)
 
-	#show the frame
-	cv2.imshow('frame', prev_frame)
-	cv2.imshow('frame',frame)
-	
+	if (prev_frame is not None):
+		draw_rects(prev_frame, final_rects)
+		#show the frame
+		cv2.imshow('frame', prev_frame)
+
+
 	prev_frame = frame
 	ret, frame=capture.read()
 	
