@@ -26,6 +26,7 @@ def detectFaces(image, faceDetector):
 	my_rects = faceDetector.detectMultiScale(image)
 	rects_lock.acquire()
 	rects = my_rects
+	rects = merge_rects(rects, 0.5)
 	rects_lock.release()
 	return True
 
@@ -135,16 +136,6 @@ while (ret != False):
 			skin_color =  cv2.mean(rec_human,skin_color_thresh)
 			hsv_skin_color = cv2.cvtColor(np.uint8([[skin_color]]), cv2.COLOR_BGR2HSV)
 			skin_mask = calculate_skin_mask(hsv_skin_color, hsv_frame_blurred)
-			#thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 4)
-			#skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_CLOSE, kernel, iterations = 4)
-			#skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_CLOSE, kernel, iterations = 3)
-			#thresh = cv2.dilate(thresh,kernel,iterations = 3)
-			#thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations = 3)
-			#skin_color =  cv2.mean(rec_human,thresh)
-
-			#skin_min_threshold = tuple(np.subtract(skin_color, (20, 20, 20, 0)))
-			#skin_max_threshold = tuple(np.add(skin_color, (20, 20, 20, 0)))
-			#skin_mask = cv2.inRange(rec_human,skin_min_threshold,skin_max_threshold)
 			skin_mask = cv2.dilate(skin_mask,kernel,iterations = 1)
 
 
@@ -157,7 +148,6 @@ while (ret != False):
 			cv2.imshow('thresh',skin_mask)
 			#cv2.imshow('end_mask',end_mask)
 			contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
-			#cv2.drawContours(frame, contours, -1, skin_color, -1)
 			accepted_contours = 0
 			for contour in contours:
 				area = cv2.contourArea(contour)
