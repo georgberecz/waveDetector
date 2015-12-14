@@ -26,7 +26,6 @@ def detectFaces(image, faceDetector):
 	my_rects = faceDetector.detectMultiScale(image)
 	rects_lock.acquire()
 	rects = my_rects
-	rects = merge_rects(rects, 0.5)
 	rects_lock.release()
 	return True
 
@@ -72,7 +71,7 @@ def calculate_skin_mask (skin_color, image):
 		return mask_1
 
 
-videoFileName="VIDEO0069.mp4"
+videoFileName="VIDEO0063.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -171,7 +170,7 @@ while (ret != False):
 	#show the frame
 	cv2.imshow('frame',frame)
 	i += 1
-#time.sleep(0.5)
+	time.sleep(2.0)
 	ret, frame=capture.read()
 	if cv2.waitKey(1) & 0xFF == ord('q'):
 		break
