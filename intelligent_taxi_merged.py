@@ -218,7 +218,7 @@ def correct_rects(corrected_rects, rects, step):
 # START
 ##########################################################################
 
-videoFileName="VIDEO0073.mp4"
+videoFileName="VIDEO0062.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -315,7 +315,7 @@ while (ret != False):
 				#cv2.imshow('skin_mask',skin_mask)
 				#cv2.imshow('thresh',thresh)
 				cv2.imshow('end_mask',end_mask)
-				contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
+				im2, contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
 				accepted_contours = 0
 				for contour in contours:
 					area = cv2.contourArea(contour)
