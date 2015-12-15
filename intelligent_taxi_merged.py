@@ -74,48 +74,76 @@ def calculate_skin_mask (skin_color, image):
 def draw_rects(frame, rects):
 	for rect in rects:
 		if rect is not None:
-			cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),1)
+			cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0), 3)
 
 #It matches the current frame with the previous one and adds Null if no match was found
-def match_rects(rects, prev_frames_rects):
+def match_rects(rects, corrected_prev_frames_rects, prev_frames_rects, steps):
 	output = []
+	corrected_output = []
 	prev_rects = []
 	rects2 = copy.deepcopy(rects)
-	
-	#take all previous frame rectangles
+
 	if len(prev_frames_rects) > 0:
 		prev_rects = prev_frames_rects[-1]
 
 	#match all previous frame rectangles
 	for j in range(len(prev_rects)):
-		
-		#if (j >= len(prev_rects)): continue; #somehow there appears a bug where j actually can go bigger than len(prev_rects)
-		
+		check_frame_num = 1
+		check_rects = prev_rects
+
 		if (prev_rects[j] is None):
-			output.append(None)
-			continue
-		prev_x = prev_rects[j][0]
-		mindist = 9999
-		minrect = None
-		if (len(rects2) > 0):
-			minrect = rects2[0]
-		for r in rects2:
-			if (r is not None):
-				dist = abs(r[0] - prev_x)
-				if (dist < mindist):
-					mindist = dist
-					minrect = r
+			#seek earlier rects
+			found = False
+			while (check_frame_num >= 0 and check_frame_num < steps+1):
+				check_frame_num += 1
+				if (prev_frames_rects[-check_frame_num][j] != None):
+					found = True
+					check_rects = prev_frames_rects[-check_frame_num]
+					break
+			if (not found):
+				output.append(None)
+				corrected_output.append(None)
+				# (1) this place is certainly dead, no previous rectangle within step
+				continue
+
+		mindist, minrect = findMinRect(check_rects[j], rects2)
+
 		if (mindist > 50):
-			output.append(None);
+			output.append(None)
+			#The current frame doesn't contain any rects but we'll still add whatever rectangle we had previously
+			#because it has to be in the range of steps otherwise we would have exit at [1]
+			corrected_output.append(check_rects[j])
 		else:
 			rects2.remove(minrect)
-			output.append(minrect)
+			corrected_output.append(minrect)
+			if (check_frame_num > 1):
+				output.append(minrect)
+			else:
+				output.append(None)
 	for r in rects2:
 		output.append(r)
-	
-	return output
+		corrected_output.append(r)
 
-def smooth_rects(rects, prev_frames_rects, steps):
+	prev_frames_rects.append(output)
+	corrected_prev_frames_rects.append(corrected_output)
+
+def findMinRect(rect, rect_list):
+	prev_x = rect[0]
+	mindist = 9999
+	minrect = None
+	if (len(rect_list) > 0):
+		minrect = rect_list[0]
+	for r in rect_list:
+		if (r is not None):
+			dist = abs(r[0] - prev_x)
+			if (dist < mindist):
+				mindist = dist
+				minrect = r
+	return mindist, minrect
+
+def smooth_rects(corrected_prev_frames_rects, prev_frames_rects, steps):
+
+	rects = prev_frames_rects[-1]
 	prev_len = len(prev_frames_rects)
 	for i in range(len(rects)):
 		if rects[i] is None:
@@ -141,7 +169,7 @@ def smooth_rects(rects, prev_frames_rects, steps):
 			x2 = slerp(x2, px2, 0.5 / (j+1))
 			y2 = slerp(y2, py2, 0.5 / (j+1))
 		rects[i] = (x, y, x2-x, y2-y)
-	return rects
+	prev_frames_rects[-1] = rects
 
 def print_rects(rects):
 	result = "["
@@ -188,17 +216,30 @@ def merge_rects(rects, overlapThres):
 			rects2.append((x, y, w, h))
 	return rects2
 
+def remove_false_positive_rects(corrected_rects, rects):
+	if len(corrected_rects) < 3:
+		return
+
+	for i in range(len(corrected_rects[-1])):
+		if (len(corrected_rects[-2]) <= i or len(corrected_rects[-3]) <= i): continue
+		if (corrected_rects[-1][i] is None and corrected_rects[-2][i] is not None and corrected_rects[-3][i] is None):
+			corrected_rects[-2][i] = None
+			rects[-2][i] = None
+
+
 def correct_rects(corrected_rects, rects, step):
 	if len(rects) < 2:
 		return corrected_rects;
+
+
 
 	start = len(rects)-step
 	if start < 0:
 		start = 0;
 	end = len(rects)
-	
+
 	curr_rects = rects[-1]
-	
+
 	for i in range(len(curr_rects)):
 		if (curr_rects[i] == None):
 			predecessor = None
@@ -218,7 +259,7 @@ def correct_rects(corrected_rects, rects, step):
 # START
 ##########################################################################
 
-videoFileName="VIDEO0062.mp4"
+videoFileName="VIDEO0061.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -240,6 +281,7 @@ prev_frames_rects = []
 corrected_prev_frames_rects = []
 prev_frame = None
 while (ret != False):
+	#time.sleep(0.2)
 	gesture_detected = False
 
 	# Capture frame-by-frame
@@ -249,11 +291,10 @@ while (ret != False):
 	if not t.is_alive():
 		#Process rectangles
 		rects_lock.acquire()
-		rects = match_rects(rects, prev_frames_rects)
-		rects = smooth_rects(rects, prev_frames_rects, 5)
-		prev_frames_rects.append(rects)
-		corrected_prev_frames_rects.append(copy.deepcopy(rects))
-		correct_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
+		match_rects(rects, corrected_prev_frames_rects, prev_frames_rects, 5)
+		#smooth_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
+		#correct_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
+		remove_false_positive_rects(corrected_prev_frames_rects, prev_frames_rects)
 		
 		print_rects(corrected_prev_frames_rects[-1])
 		rects_lock.release()
