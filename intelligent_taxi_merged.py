@@ -315,7 +315,12 @@ while (ret != False):
 				#cv2.imshow('skin_mask',skin_mask)
 				#cv2.imshow('thresh',thresh)
 				cv2.imshow('end_mask',end_mask)
-				im2, contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
+
+				if (cv2.__version__[0] == '3'):
+					im2, contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
+				else:
+					contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
+
 				accepted_contours = 0
 				for contour in contours:
 					area = cv2.contourArea(contour)
