@@ -143,8 +143,8 @@ def findMinRect(rect, rect_list):
 
 def smooth_rects(corrected_prev_frames_rects, prev_frames_rects, steps):
 
-	rects = prev_frames_rects[-1]
-	prev_len = len(prev_frames_rects)
+	rects = corrected_prev_frames_rects[-1]
+	prev_len = len(corrected_prev_frames_rects)
 	for i in range(len(rects)):
 		if rects[i] is None:
 			continue;
@@ -152,7 +152,7 @@ def smooth_rects(corrected_prev_frames_rects, prev_frames_rects, steps):
 		(x, y, w, h) = rects[i]
 		x2 = x+w
 		y2 = y+h
-		previous = prev_frames_rects[max(0, prev_len-steps) : prev_len]
+		previous = corrected_prev_frames_rects[max(0, prev_len-steps) : prev_len]
 		for j in range(len(previous)):
 			#find the corresponding rectangle in rectangle list
 			if len(previous[j]) <= i:
@@ -169,7 +169,14 @@ def smooth_rects(corrected_prev_frames_rects, prev_frames_rects, steps):
 			x2 = slerp(x2, px2, 0.5 / (j+1))
 			y2 = slerp(y2, py2, 0.5 / (j+1))
 		rects[i] = (x, y, x2-x, y2-y)
-	prev_frames_rects[-1] = rects
+	corrected_prev_frames_rects[-1] = rects
+	#change prev_frames_rects too if they are not the same
+	for j in range(min(len(rects), len(prev_frames_rects[-1]))):
+		prj = prev_frames_rects[-1][j]
+		crj = rects[j]
+		if (prj is not None and crj is not None):
+			prev_frames_rects[-1][j] = copy.deepcopy(crj)
+
 
 def print_rects(rects):
 	result = "["
@@ -292,7 +299,7 @@ while (ret != False):
 		#Process rectangles
 		rects_lock.acquire()
 		match_rects(rects, corrected_prev_frames_rects, prev_frames_rects, 5)
-		#smooth_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
+		smooth_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
 		#correct_rects(corrected_prev_frames_rects, prev_frames_rects, 5)
 		remove_false_positive_rects(corrected_prev_frames_rects, prev_frames_rects)
 		
