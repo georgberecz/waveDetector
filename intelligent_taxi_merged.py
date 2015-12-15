@@ -32,7 +32,7 @@ def detectFaces(image, faceDetector):
 	return True
 
 def calculate_hsv_mask (image):
-	lower_red_first = np.array([169,25,5])
+	lower_red_first = np.array([170,25,5])
 	upper_red_first = np.array([179,150,250])
 	lower_red_second = np.array([0,25,5])
 	upper_red_second = np.array([15,150,250])
@@ -74,7 +74,7 @@ def calculate_skin_mask (skin_color, image):
 def draw_rects(frame, rects):
 	for rect in rects:
 		if rect is not None:
-			cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),3)
+			cv2.rectangle(frame,(int(rect[0] * de_factor), int(rect[1] * de_factor)),(int(rect[0] * de_factor + rect[2] * de_factor), int(rect[1] * de_factor + rect[3] * de_factor)),(255,0,0),1)
 
 #It matches the current frame with the previous one and adds Null if no match was found
 def match_rects(rects, prev_frames_rects):
@@ -218,7 +218,7 @@ def correct_rects(corrected_rects, rects, step):
 # START
 ##########################################################################
 
-videoFileName="VIDEO0062.mp4"
+videoFileName="VIDEO0073.mp4"
 capture = cv2.VideoCapture(videoFileName)
 
 faceCascade = cv2.CascadeClassifier('haarcascade_fullbody.xml')
@@ -267,51 +267,62 @@ while (ret != False):
 		final_rects = corrected_prev_frames_rects[-2]
 
 	for rect in final_rects:
-		x1 = int(rect[0] * de_factor)
-		x2 = int(rect[0] * de_factor + rect[2] * de_factor)
-		y1 = int(rect[1] * de_factor)
-		y2 = int(rect[1] * de_factor + rect[3] * de_factor)
-		# y_difference defines the upper third of the recognized human
-		y_difference = int((y2 - y1) / 3)
-		cv2.rectangle(frame,
-					  (x1,y1),(x2,y2),
-					  (255,0,0),
-					  1)
+		if rect is not None:
+			x1 = int(rect[0] * de_factor)
+			x2 = int(rect[0] * de_factor + rect[2] * de_factor)
+			y1 = int(rect[1] * de_factor)
+			y2 = int(rect[1] * de_factor + rect[3] * de_factor)
 			
-		hsv_frame = cv2.cvtColor(frame[y1:(y1+y_difference),x1:x2], cv2.COLOR_BGR2HSV)
-		hsv_frame_blurred = cv2.blur(hsv_frame,(3,3))
-		hsv_mask = calculate_hsv_mask(hsv_frame)
-		#ret,thresh = cv2.threshold(gray[y1:(y1+y_difference),x1:x2], 110, 255, cv2.THRESH_BINARY)
-		thresh = hsv_mask
-		#thresh = cv2.morphologyEx(hsv_mask, cv2.MORPH_OPEN, kernel, iterations = 2)
-		skin_color_thresh = cv2.erode(thresh,kernel,iterations = 2)
-		thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 3)
-					  
-		if thresh is not None:
-			rec_human = frame[y1:(y1+y_difference),x1:x2]
-			#rec_human_blurred = cv2.blur(rec_human,(3,3))
-			skin_color =  cv2.mean(rec_human,skin_color_thresh)
-			hsv_skin_color = cv2.cvtColor(np.uint8([[skin_color]]), cv2.COLOR_BGR2HSV)
-			skin_mask = calculate_skin_mask(hsv_skin_color, hsv_frame_blurred)
-			skin_mask = cv2.dilate(skin_mask,kernel,iterations = 1)
-											  
-											  
-			end_mask = skin_mask & thresh
-												  
+			# increase size of rectangle by factor (to make sure arm is inside the box)
+			inc_factor = 0.5
+			x_difference = x2 - x1
+			x1 = int (x1 - x_difference * inc_factor)
+			if x1 < 0: x1 = 0
+			x2 = int (x2 + x_difference * inc_factor)
+			
+			# y_difference defines the upper third of the recognized human
+			y_difference = int((y2 - y1) / 3)
+			y1 = int (y1 - y_difference * inc_factor)
+			if y1 < 0: y = 0
+			y_difference += int(y_difference * inc_factor)
 			kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
-			end_mask = cv2.dilate(end_mask,kernel,iterations = 5)
-														  
-			#cv2.imshow('skin_mask',skin_mask)
-			cv2.imshow('thresh',skin_mask)
-			#cv2.imshow('end_mask',end_mask)
-			contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
-			accepted_contours = 0
-			for contour in contours:
-				area = cv2.contourArea(contour)
-				if area > 150:
-					accepted_contours += 1
-			if accepted_contours >= 2:
-				gesture_detected = True
+
+			#convert to hsv
+			hsv_frame = cv2.cvtColor(frame[y1:(y1+y_difference),x1:x2], cv2.COLOR_BGR2HSV)
+			hsv_frame_blurred = cv2.blur(hsv_frame,(3,3))
+			hsv_mask = calculate_hsv_mask(hsv_frame)
+			
+			thresh = hsv_mask
+			thresh = cv2.morphologyEx(hsv_mask, cv2.MORPH_OPEN, kernel, iterations = 2)
+			skin_color_thresh = cv2.erode(thresh,kernel,iterations = 2)
+			thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations = 3)
+					  
+			if thresh is not None:
+				rec_human = frame[y1:(y1+y_difference),x1:x2]
+				skin_color =  cv2.mean(rec_human,skin_color_thresh)
+				hsv_skin_color = cv2.cvtColor(np.uint8([[skin_color]]), cv2.COLOR_BGR2HSV)
+				skin_mask = calculate_skin_mask(hsv_skin_color, hsv_frame_blurred)
+				skin_mask = cv2.dilate(skin_mask,kernel,iterations = 1)
+
+				end_mask = thresh & skin_mask
+				kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(5,5))
+				end_mask = cv2.dilate(end_mask,kernel,iterations = 3)
+
+				end_mask = cv2.morphologyEx(end_mask, cv2.MORPH_OPEN, kernel, iterations = 2)
+				end_mask = cv2.morphologyEx(end_mask, cv2.MORPH_CLOSE, kernel, iterations = 2)
+
+
+				#cv2.imshow('skin_mask',skin_mask)
+				#cv2.imshow('thresh',thresh)
+				cv2.imshow('end_mask',end_mask)
+				contours, hierarchy = cv2.findContours(end_mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE,offset=(x1,y1))
+				accepted_contours = 0
+				for contour in contours:
+					area = cv2.contourArea(contour)
+					if area > 150:
+						accepted_contours += 1
+				if accepted_contours >= 2:
+					gesture_detected = True
 
 	#print different boxes depending if gesture was detected
 	if gesture_detected:
